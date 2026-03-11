@@ -232,12 +232,12 @@ export class WithdrawalQueue {
     // Dynamic imports — Lit SDK is large and optional
     const { LitNodeClient } = await import('@lit-protocol/lit-node-client');
     const { ethers } = await import('ethers');
-    const { createSiweMessage, generateAuthSig, LitActionResource } =
+    const { createSiweMessage, generateAuthSig, LitAccessControlConditionResource } =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await import('@lit-protocol/auth-helpers') as any;
-    // LitAbility lives in @lit-protocol/constants, not auth-helpers
+    // LIT_ABILITY (non-deprecated) lives in @lit-protocol/constants
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { LitAbility } = await import('@lit-protocol/constants') as any;
+    const { LIT_ABILITY } = await import('@lit-protocol/constants') as any;
 
     const client = new LitNodeClient({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -256,8 +256,8 @@ export class WithdrawalQueue {
       expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h
       resourceAbilityRequests: [
         {
-          resource: new LitActionResource('*'),
-          ability: LitAbility.AccessControlConditionDecryption,
+          resource: new LitAccessControlConditionResource('*'),
+          ability: LIT_ABILITY.AccessControlConditionDecryption,
         },
       ],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
