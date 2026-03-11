@@ -1,0 +1,41 @@
+{
+  "name": "wraith-agent",
+  "version": "0.1.0",
+  "description": "Private AI agent payments on Starknet",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+  },
+  "keywords": [
+    "starknet",
+    "privacy",
+    "x402",
+    "ai-agents",
+    "zk"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@lit-protocol/auth-helpers": "^7.4.0",
+    "@lit-protocol/constants": "^7.4.0",
+    "@lit-protocol/encryption": "^7.4.0",
+    "@lit-protocol/lit-node-client": "^7.4.0",
+    "@types/express": "^5.0.6",
+    "@web3-storage/w3up-client": "^16.0.0",
+    "ethers": "^5.8.0",
+    "express": "^5.2.1",
+    "poseidon-lite": "^0.2.1",
+    "snarkjs": "^0.7.4",
+    "starknet": "^6.24.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.4.0"
+  }
+}

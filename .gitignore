@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.zkey
+*.r1cs
+*.wasm
+*.ptau
+/circuits/pool_js/
+/circuits/target/
+.env
+*.log
+/tmp/
