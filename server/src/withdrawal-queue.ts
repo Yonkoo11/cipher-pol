@@ -237,7 +237,7 @@ export class WithdrawalQueue {
       await import('@lit-protocol/auth-helpers') as any;
     // LIT_ABILITY (non-deprecated) lives in @lit-protocol/constants
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { LIT_ABILITY } = await import('@lit-protocol/constants') as any;
+    const { LIT_ABILITY, LIT_RPC } = await import('@lit-protocol/constants') as any;
 
     const client = new LitNodeClient({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -248,10 +248,27 @@ export class WithdrawalQueue {
 
     const wallet = new ethers.Wallet(privateKey);
     const address = await wallet.getAddress();
-
     const latestBlockhash = await client.getLatestBlockhash();
 
-    const sessionSigs = await client.getSessionSigs({
+    // Capacity Credits delegation (required for Datil production threshold decryption).
+    // Set LIT_CAPACITY_TOKEN_ID to the token ID minted by `node scripts/lit-setup.mjs`.
+    // The SERVER_ETH_PRIVATE_KEY wallet must own that Capacity Credits NFT.
+    let capacityDelegationAuthSig: unknown;
+    const capacityTokenId = process.env.LIT_CAPACITY_TOKEN_ID;
+    if (capacityTokenId) {
+      const provider = new ethers.providers.JsonRpcProvider(LIT_RPC.CHRONICLE_YELLOWSTONE);
+      const capacityWallet = wallet.connect(provider);
+      const result = await client.createCapacityDelegationAuthSig({
+        uses: '1000',
+        dAppOwnerWallet: capacityWallet,
+        capacityTokenId,
+        delegateeAddresses: [address],
+      });
+      capacityDelegationAuthSig = result.capacityDelegationAuthSig;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getSessionSigsParams: any = {
       chain: 'ethereum',
       expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h
       resourceAbilityRequests: [
@@ -272,8 +289,13 @@ export class WithdrawalQueue {
         });
         return await generateAuthSig({ signer: wallet, toSign });
       },
-    });
+    };
 
+    if (capacityDelegationAuthSig) {
+      getSessionSigsParams.capacityDelegationAuthSig = capacityDelegationAuthSig;
+    }
+
+    const sessionSigs = await client.getSessionSigs(getSessionSigsParams);
     return sessionSigs;
   }
 }
