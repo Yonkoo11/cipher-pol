@@ -9,3 +9,7 @@ dist/
 .env
 *.log
 /tmp/
+
+# Lit Protocol test credentials
+.lit-test-wallet.json
+.lit-capacity.json
