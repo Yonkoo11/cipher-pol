@@ -1450,7 +1450,7 @@ HTTP/1.1 <span class="num">200</span> OK
   <div class="section-label">Section 06</div>
   <div class="section-divider"></div>
   <h2 class="section-title limits-title">HONEST LIMITS</h2>
-  <p class="section-sub">This is a research implementation. The ZK proof is real. The privacy properties are real. The production readiness is not.</p>
+  <p class="section-sub">This is a research implementation. The ZK proof is real. Seven documented limits. The production readiness is not.</p>
 
   <div class="limits-grid">
     <div class="limit-card">
@@ -1498,6 +1498,14 @@ HTTP/1.1 <span class="num">200</span> OK
       <div class="limit-card-title">IN-MEMORY NULLIFIER SET</div>
       <div class="limit-card-body">
         The double-spend prevention is stored in RAM. A server restart clears it, opening a window where the same note can be spent twice until the next on-chain nullifier sync. Production requires a Redis-backed <code>NullifierSet</code>. The interface is implemented but not tested against live Redis.
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-card-num">Limit 07</div>
+      <div class="limit-card-title">NO RELAY — SERVER OPERATOR HAS FULL GRAPH</div>
+      <div class="limit-card-body">
+        The server submits its own withdrawals via <code>pool.withdraw()</code>. The operator therefore holds the complete map of nullifierHash → withdrawal tx. Chain observers cannot link deposit to withdrawal — the operator can. A relay network (anonymous third-party submitting withdrawals) would close this. v1 does not include one.
       </div>
     </div>
   </div>

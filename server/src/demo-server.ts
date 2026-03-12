@@ -73,6 +73,8 @@ app.post(
     token:         'USDC',
     serverAddress: API_ADDRESS,
     poolAddress:   POOL_ADDRESS,
+    // Demo server runs on localhost — no TLS. Remove this in production.
+    allowInsecure: true,
     onVerified: (proof) => {
       // withdrawalQueue.enqueue() is called automatically by the middleware
       // if withdrawal config is provided. For manual control:

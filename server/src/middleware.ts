@@ -34,6 +34,14 @@
  * - Groth16 proof is verified by the pool contract when withdrawal is submitted
  * - If the proof is invalid, pool.withdraw() reverts — server served in good faith
  *
+ * What the server DOES see (not hidden by ZK):
+ * - Client IP address — standard HTTP metadata, not addressed by v1
+ * - nullifierHash — stripped before handlers, but server operator sees it in middleware
+ * - Request timing — WithdrawalQueue batches to reduce on-chain timing correlation
+ *
+ * The ZK proof severs the on-chain deposit→withdrawal link for chain observers.
+ * It does NOT make the payer anonymous to the server operator.
+ *
  * Security model:
  * - Nullifier tracking (NullifierSet) prevents proof replay within a server session
  * - On-chain nullifier storage prevents replay after withdrawal is confirmed
@@ -84,6 +92,20 @@ export interface PaywallConfig {
    * Pass a RedisNullifierSet for production (survives restarts, shared across replicas).
    */
   nullifierSet?: INullifierSet;
+  /**
+   * Allow plaintext HTTP requests.
+   * DEFAULT: false — middleware rejects requests that are not TLS-secured.
+   *
+   * WHY THIS MATTERS: X-Payment-Proof contains nullifierHash in cleartext.
+   * Over HTTP, any proxy, CDN, or network tap can capture it. The nullifierHash
+   * can be correlated with on-chain pool.withdraw() transactions, linking
+   * payment timing to the on-chain event and defeating the ZK unlinking.
+   *
+   * Set to true ONLY for local development (localhost). Never in production.
+   * Behind a TLS-terminating reverse proxy, set `app.set('trust proxy', 1)`
+   * so that req.secure reads the X-Forwarded-Proto header.
+   */
+  allowInsecure?: boolean;
   /** Called after successful proof verification (before next()) */
   onVerified?: (proof: X402PaymentProof, req: Request) => void;
 }
@@ -125,6 +147,23 @@ export function wraithPaywall(config: PaywallConfig) {
     res: Response,
     next: NextFunction
   ): Promise<void> {
+    // Reject plaintext HTTP unless explicitly opted out.
+    // req.secure is true for direct TLS; X-Forwarded-Proto handles reverse proxies
+    // (requires app.set('trust proxy', 1) when behind nginx/Cloudflare/ALB).
+    if (!config.allowInsecure) {
+      const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim();
+      const isSecure = req.secure || proto === 'https';
+      if (!isSecure) {
+        res.status(400).json({
+          error: 'HTTPS required',
+          reason: 'X-Payment-Proof must not travel over plaintext HTTP. ' +
+                  'nullifierHash in cleartext can be correlated with on-chain events. ' +
+                  'Set allowInsecure: true only for localhost development.',
+        });
+        return;
+      }
+    }
+
     const proofHeader = req.headers['x-payment-proof'] as string | undefined;
     const schemeHeader = req.headers['x-payment-scheme'] as string | undefined;
 

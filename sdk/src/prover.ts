@@ -48,11 +48,19 @@ export interface WithdrawWitness {
   amount: bigint;
   /** Recipient Starknet address */
   recipient: string;
-  /** Fee for relayer (0 if withdrawing directly) */
+  /**
+   * Relayer fee (pass 0n — no relayer in v1).
+   * If non-zero, the circuit routes `fee` to a relayer address. No relayer
+   * is implemented in this codebase; pass 0n until one exists.
+   */
   fee: bigint;
-  /** Refund amount if deposit > withdrawal amount (0 typically) */
+  /**
+   * Refund amount = depositAmount - withdrawalAmount.
+   * Pass 0n when withdrawing the full deposit. Non-zero when doing a partial
+   * withdrawal; the circuit commits to the refund via poseidon(nullifier, refund).
+   */
   refund: bigint;
-  /** commitmentAmount = amount if no refund */
+  /** The full original deposit amount (amount + refund). */
   commitmentAmount: bigint;
   /** Merkle proof for deposit in main pool tree (24 siblings) */
   pathElements: bigint[];
@@ -60,9 +68,18 @@ export interface WithdrawWitness {
   pathIndices: number[];
   /** Current Merkle root of pool */
   root: bigint;
-  /** Associated set root (for compliance proofs — use 0 for simple withdrawal) */
+  /**
+   * Association set root (Privacy Pools compliance feature).
+   *
+   * Pass the main pool root to assert "every depositor in this pool is compliant"
+   * (i.e., no compliance filtering). To actually filter, maintain a separate
+   * curated Merkle tree of approved commitments, pass its root here, and provide
+   * the inclusion proof in associatedSetPathElements/Indices.
+   *
+   * v1 default: associatedSetRoot = main pool root (no filtering).
+   */
   associatedSetRoot: bigint;
-  /** Merkle proof for deposit in association set (24 siblings, zeros if not in set) */
+  /** Inclusion proof for your deposit in the association set tree (24 siblings). */
   associatedSetPathElements: bigint[];
   associatedSetPathIndices: number[];
 }

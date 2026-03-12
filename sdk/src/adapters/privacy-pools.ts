@@ -185,6 +185,23 @@ export class PrivacyPoolsAdapter implements IPrivacyAdapter {
     }
 
     // Step 3: Build witness
+    //
+    // fee: 0n — no relayer fee in v1. The server submits its own withdrawals.
+    //   To add a relayer fee: pass fee > 0 and wire up a relayer that collects
+    //   pool.withdraw() fee output. Currently no relayer exists in this codebase.
+    //
+    // refund: note.amount - amount — non-zero if depositing more than one payment's
+    //   worth and withdrawing a partial amount. In practice agents deposit exactly
+    //   what they need and refund is 0. The circuit handles partial withdrawals
+    //   but this adapter doesn't expose partial amounts in its API surface.
+    //
+    // associatedSetRoot = main pool root — this means the "association set" is the
+    //   entire pool (every depositor is considered compliant). The Privacy Pools
+    //   paper's intent is that you prove membership in a *curated* subset of
+    //   compliant deposits (e.g., "not sanctioned"). To use real compliance sets,
+    //   maintain a separate Merkle tree of approved commitments and pass its root
+    //   and your inclusion proof here. Using the main root is valid (all deposits
+    //   are in scope) but provides no compliance filtering beyond the main proof.
     const refund = note.amount - amount;
     const witness: WithdrawWitness = {
       secret: note.secret,
@@ -197,7 +214,6 @@ export class PrivacyPoolsAdapter implements IPrivacyAdapter {
       pathElements: merkleProof.pathElements,
       pathIndices: merkleProof.pathIndices,
       root,
-      // Use the same root for associatedSet (simplest compliance mode)
       associatedSetRoot: root,
       associatedSetPathElements: merkleProof.pathElements,
       associatedSetPathIndices: merkleProof.pathIndices,
