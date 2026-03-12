@@ -240,14 +240,18 @@ This is a **demo/research implementation** with real privacy properties:
 - Circuit, hash function, and Merkle tree are correctly implemented
 - Tests verify privacy invariants (no txHash in server queue, etc.)
 
-What has NOT been done:
-- Production trusted setup (multi-party ceremony)
-- Audit of the Circom circuit against Ekubo's deployed verifier
-- On-chain end-to-end test with actual Groth16 proof verification
-- Load/performance testing of the proof generation flow
-- Production nullifier set (Redis-backed)
-- RapidSnark integration for fast proof generation
+What HAS been verified (2026-03-12):
+- On-chain end-to-end: deposit → Groth16 proof → garaga calldata → withdraw() on devnet
+- 8/8 on-chain tests pass against starknet-devnet 0.7.2 (seed 42)
+- Groth16 proof generation: 4-6s (snarkjs WASM)
+- garaga 0.15.3 calldata: 2918 felts, accepted by deployed verifier
+- Local proof verification passes before serialization
 
-0 end-to-end tests with real ZK proofs have been run. The proof generation
-code matches the circuit structure and compiles, but has not been exercised
-against a deployed pool contract with real funds.
+What has NOT been done:
+- Production trusted setup (multi-party ceremony) — current setup is 1-party
+- Audit of the Circom circuit by a third party
+- Testnet/mainnet deployment (devnet only)
+- Load/performance testing under concurrent proof generation
+- Production nullifier set (Redis-backed) — in-memory only
+- RapidSnark integration — snarkjs WASM is 4-6s, RapidSnark is ~100ms
+- Lit Protocol integration against a live Lit network (written, not tested)

@@ -8,9 +8,14 @@
  * - Compliance: viewing keys + audit proofs
  * - No liquidity fragmentation (embedded in ERC-20 standard)
  *
- * STATUS: STUB — STRK20 contracts not yet public.
- * Monitor: github.com/starkware-libs + starknet.io/blog
- * When repo ships: read pool/src/*.cairo for exact function signatures.
+ * STATUS: STUB — STRK20 announced 2026-03-10 but contracts not yet public.
+ * Monitor: https://strk20.starknet.io/ + github.com/starkware-libs
+ * Technical deep dive promised in "a few days" from announcement date.
+ * When repo ships: read pool/src/*.cairo for exact function signatures,
+ *   then fill in deposit/withdraw/generateAuditProof below.
+ *
+ * NOTE: STRK20 uses Stwo STARKs (hash-based), NOT Groth16/BN254.
+ * Our circuits/zkey are for v1 (PrivacyPoolsAdapter) and will NOT be reused here.
  *
  * DO NOT USE IN PRODUCTION until repo is confirmed.
  */

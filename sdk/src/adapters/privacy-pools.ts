@@ -17,7 +17,7 @@
 
 import { Account, CallData, RpcProvider, uint256 } from 'starknet';
 import { IPrivacyAdapter, Note, PrivacyScore, PaymentReceipt, AuditProof, X402PaymentProof } from '../types.js';
-import { computeCommitment, computeNullifierHash } from '../crypto/poseidon.js';
+import { poseidonHash, computeCommitment, computeNullifierHash } from '../crypto/poseidon.js';
 import {
   IncrementalMerkleTree,
   buildTreeFromCommitments,
@@ -95,13 +95,17 @@ export class PrivacyPoolsAdapter implements IPrivacyAdapter {
   async deposit(amount: bigint, token: string): Promise<{ txHash: string; note: Note }> {
     const secret = randomFelt();
     const nullifier = randomFelt();
-    const commitment = computeCommitment(secret, nullifier, amount);
+
+    // pool.deposit() takes H(secret, nullifier) — it computes H(H(s,n), amount) internally
+    // as the commitment leaf stored in the Merkle tree.
+    const secretAndNullifierHash = poseidonHash(secret, nullifier);
+    const commitment = poseidonHash(secretAndNullifierHash, amount); // leaf in pool's Merkle tree
 
     const { transaction_hash } = await this.account.execute({
       contractAddress: this.poolAddress,
       entrypoint: 'deposit',
       calldata: CallData.compile({
-        secret_and_nullifier_hash: uint256.bnToUint256(commitment),
+        secret_and_nullifier_hash: uint256.bnToUint256(secretAndNullifierHash),
         amount: uint256.bnToUint256(amount),
       }),
     });
@@ -332,20 +336,28 @@ export class PrivacyPoolsAdapter implements IPrivacyAdapter {
     const events = data.result?.events ?? [];
 
     return events.map((e) => {
-      // Event layout (from pool.cairo #[event] struct):
+      // Event layout (from pool.cairo Deposit event struct):
       // keys[0] = selector
       // keys[1] = caller (depositor address) — ContractAddress, #[key]
-      // keys[2] = commitment low  (u256 low word, #[key])
-      // keys[3] = commitment high (u256 high word, #[key])
+      // keys[2] = secret_and_nullifier_hash low  (u256 low word, #[key])  ← NOT the leaf
+      // keys[3] = secret_and_nullifier_hash high (u256 high word, #[key])
       // data[0] = amount low
       // data[1] = amount high
-      const commitmentLow = BigInt(e.keys[2] ?? '0');
-      const commitmentHigh = BigInt(e.keys[3] ?? '0');
-      const commitment = commitmentLow + (commitmentHigh << 128n);
+      //
+      // IMPORTANT: pool.deposit(secret_and_nullifier_hash, amount) stores
+      //   commitment = hash(secret_and_nullifier_hash, amount)   ← this is the Merkle leaf
+      // The event emits secret_and_nullifier_hash (not the commitment).
+      // We must reconstruct the commitment to rebuild the tree correctly.
+      const snhLow = BigInt(e.keys[2] ?? '0');
+      const snhHigh = BigInt(e.keys[3] ?? '0');
+      const secretAndNullifierHash = snhLow + (snhHigh << 128n);
 
       const amountLow = BigInt(e.data[0] ?? '0');
       const amountHigh = BigInt(e.data[1] ?? '0');
       const amount = amountLow + (amountHigh << 128n);
+
+      // Reconstruct the actual Merkle leaf: hash(secret_and_nullifier_hash, amount)
+      const commitment = poseidonHash(secretAndNullifierHash, amount);
 
       return {
         commitment,

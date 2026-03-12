@@ -133,6 +133,19 @@ export async function generateWithdrawProof(
     artifacts.zkeyPath
   );
 
+  // Verify the proof locally before serializing.
+  // This catches stale .zkey / circuit mismatches immediately rather than
+  // silently shipping a proof that the on-chain verifier will reject.
+  const vk = await snarkjs.zKey.exportVerificationKey(artifacts.zkeyPath);
+  const valid = await snarkjs.groth16.verify(vk, publicSignals, proof);
+  if (!valid) {
+    throw new Error(
+      'Generated proof failed local verification. ' +
+      'The .zkey may not match the current circuit. ' +
+      'Re-run: cd circuits && npm run setup'
+    );
+  }
+
   // Serialize to felt252 format for Starknet
   // The Starknet verifier expects [pi_a (2 felts), pi_b (4 felts), pi_c (2 felts), public_inputs (7 felts)]
   const proofFelts = serializeProofToFelts(proof, publicSignals);

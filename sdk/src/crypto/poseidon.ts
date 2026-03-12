@@ -22,8 +22,12 @@ export function poseidonHash(a: bigint, b: bigint): bigint {
  *   temp       = Hash([secret, nullifier])   = poseidon2([secret, nullifier])
  *   commitment = Hash([temp, amount])        = poseidon2([temp, amount])
  *
- * This is the leaf value stored in the Merkle tree.
- * The pool.cairo deposit() call takes this commitment as secret_and_nullifier_hash.
+ * This is the leaf value stored in the pool's Merkle tree.
+ *
+ * NOTE: pool.cairo deposit(secret_and_nullifier_hash, amount) takes H(secret, nullifier)
+ * as the first argument — NOT the full commitment. The pool computes the commitment
+ * (= leaf) internally as hash(secret_and_nullifier_hash, amount).
+ * Use poseidonHash(secret, nullifier) when building deposit() calldata.
  */
 export function computeCommitment(secret: bigint, nullifier: bigint, amount: bigint): bigint {
   const temp = poseidonHash(secret, nullifier);

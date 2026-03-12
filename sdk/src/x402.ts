@@ -181,14 +181,28 @@ export function verifyPaymentProofFields(
  *   root, nullifierHash, recipient, fee, amount, refundCommitmentHash, associatedSetRoot
  */
 export function extractPublicInputs(zkProof: string[]): PublicInputs {
-  // 4 (pi_a) + 8 (pi_b) + 4 (pi_c) = 16 proof elements
-  // Each public signal is a u256 split into (low, high) pairs
+  // Proof element layout:
+  //   pi_a:  4 felts  (G1 point: x_low, x_high, y_low, y_high)
+  //   pi_b:  8 felts  (G2 point: x0_low, x0_high, x1_low, x1_high, y0_low, y0_high, y1_low, y1_high)
+  //   pi_c:  4 felts  (G1 point: x_low, x_high, y_low, y_high)
+  //   signals: 7 public signals × 2 felts each (u256 as low + high) = 14 felts
   const PROOF_FELTS = 16;
+  const SIGNAL_COUNT = 7;
+  const EXPECTED_LENGTH = PROOF_FELTS + SIGNAL_COUNT * 2; // 30
+
+  if (zkProof.length < EXPECTED_LENGTH) {
+    throw new Error(
+      `extractPublicInputs: zkProof has ${zkProof.length} elements but requires at least ` +
+      `${EXPECTED_LENGTH} (${PROOF_FELTS} proof felts + ${SIGNAL_COUNT}×2 signal felts). ` +
+      `This likely means proof generation failed or the proof format has changed.`
+    );
+  }
+
   const signalOffset = PROOF_FELTS;
 
   function readU256(idx: number): bigint {
-    const low = BigInt(zkProof[signalOffset + idx * 2] ?? '0');
-    const high = BigInt(zkProof[signalOffset + idx * 2 + 1] ?? '0');
+    const low = BigInt(zkProof[signalOffset + idx * 2]);
+    const high = BigInt(zkProof[signalOffset + idx * 2 + 1]);
     return low + (high << 128n);
   }
 
