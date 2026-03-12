@@ -38,7 +38,8 @@
   },
   "dependencies": {
     "express": "^4.21.0",
-    "starknet": "^6.24.1"
+    "starknet": "^6.24.1",
+    "wraith-agent": "file:.."
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

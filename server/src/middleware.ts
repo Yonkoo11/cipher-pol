@@ -51,8 +51,8 @@ import {
   verifyPaymentProofFields,
   parsePaymentHeader,
   X402_SCHEME,
-} from '../../dist/x402.js';
-import type { X402PaymentProof } from '../../dist/types.js';
+} from 'wraith-agent';
+import type { X402PaymentProof } from 'wraith-agent';
 import { NullifierSet } from './nullifier-set.js';
 import type { INullifierSet } from './nullifier-set.js';
 import { WithdrawalQueue } from './withdrawal-queue.js';

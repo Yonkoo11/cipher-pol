@@ -41,7 +41,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Account, RpcProvider } from 'starknet';
-import { deserializeProofFromFelts } from '../../dist/x402.js';
+import { deserializeProofFromFelts } from 'wraith-agent';
 
 interface QueuedWithdrawal {
   zkProof: string[];
