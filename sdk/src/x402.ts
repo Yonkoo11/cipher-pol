@@ -177,8 +177,13 @@ export function verifyPaymentProofFields(
  * The felt array format (from serializeProofToFelts):
  *   [pi_a (4 felts), pi_b (8 felts), pi_c (4 felts), public_signals (14 felts as u256 pairs)]
  *
- * Public signals in pool.circom order:
- *   root, nullifierHash, recipient, fee, amount, refundCommitmentHash, associatedSetRoot
+ * Public signals in pool.circom r1cs order (snarkjs output):
+ *   root, nullifierHash, recipient, fee, refundCommitmentHash, amount, associatedSetRoot
+ *
+ * NOTE: The circuit's main component declares [root, nullifierHash, recipient, fee, amount,
+ * refundCommitmentHash, associatedSetRoot], but snarkjs orders them by the signal's
+ * definition position in the component body, where refundCommitmentHash is declared
+ * before amount. Verified: publicSignals[5] = amount (confirmed experimentally).
  */
 export function extractPublicInputs(zkProof: string[]): PublicInputs {
   // Proof element layout:
@@ -211,8 +216,8 @@ export function extractPublicInputs(zkProof: string[]): PublicInputs {
     nullifierHash: readU256(1).toString(),
     recipient: readU256(2).toString(),
     fee: readU256(3).toString(),
-    amount: readU256(4).toString(),
-    refundCommitmentHash: readU256(5).toString(),
+    refundCommitmentHash: readU256(4).toString(),
+    amount: readU256(5).toString(),
     associatedSetRoot: readU256(6).toString(),
   };
 }
