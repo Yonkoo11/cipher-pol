@@ -642,7 +642,7 @@ nav {
 .fn   { color: var(--cyan); }
 .str  { color: var(--green); }
 .cmt  { color: var(--text-3); font-style: italic; }
-.num  { color: #fbbf24; }
+.num  { color: var(--purple-bright); }
 .type { color: var(--purple-bright); }
 .op   { color: var(--text-3); }
 .prop { color: var(--text-2); }
@@ -1575,12 +1575,8 @@ HTTP/1.1 <span class="num">200</span> OK
             <td>Poseidon2 over BN254 Fr</td>
           </tr>
           <tr>
-            <td>Merkle tree depth</td>
-            <td>24 levels — 16,777,216 deposits max</td>
-          </tr>
-          <tr>
             <td>Proof generation</td>
-            <td>4–6s (WASM) &nbsp;<span style="color:var(--text-3);font-size:11px;">· ~100ms v2 (RapidSnark)</span></td>
+            <td>4–6s (WASM)</td>
           </tr>
           <tr>
             <td>Verifier</td>
