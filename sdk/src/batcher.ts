@@ -2,6 +2,12 @@
  * PaymentBatcher — groups payments into time windows + amount buckets
  * to break timing correlation and amount-based deanonymization attacks.
  *
+ * STATUS: NOT YET INTEGRATED. WraithAgent.pay() calls generatePaymentProof()
+ * directly and does NOT go through this batcher. The flush() stub resolves
+ * with a zeroed Note (secret=0n, nullifier=0n) which would fail proof generation.
+ * Do not instantiate this class until v2 batch tx support is implemented.
+ * Reference: CLAUDE.md Known architectural gaps.
+ *
  * Attack vector it defeats:
  * - Observer sees Agent A deposit 0.003 USDC at T=0
  * - Observer sees API withdraw 0.003 USDC at T=1s

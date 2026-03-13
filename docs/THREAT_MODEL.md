@@ -277,16 +277,23 @@ This is a **demo/research implementation** with real privacy properties:
 
 What HAS been verified (2026-03-12):
 - On-chain end-to-end: deposit → Groth16 proof → garaga calldata → withdraw() on devnet
+- 13/13 server middleware tests pass
+- 26/26 SDK integration tests pass (circuit, Merkle, proof generation, serialization)
+- 28/28 HTTP x402 end-to-end tests pass (full 402 challenge → ZK proof → 200 flow)
 - 8/8 on-chain tests pass against starknet-devnet 0.7.2 (seed 42)
 - Groth16 proof generation: 4-6s (snarkjs WASM)
 - garaga 0.15.3 calldata: 2918 felts, accepted by deployed verifier
 - Local proof verification passes before serialization
+- refundCommitmentHash constraint added to circuit — prevents prover from claiming arbitrary refund amounts
+- execFileSync used in WithdrawalQueue (no shell injection via pythonPath)
+- payWithReceipt() uses nullifierHash not depositTxHash (deposit link not revealed in receipt)
 
 What has NOT been done:
 - Production trusted setup (multi-party ceremony) — current setup is 1-party
-- Audit of the Circom circuit by a third party
+- Third-party audit of the Circom circuit
 - Testnet/mainnet deployment (devnet only)
 - Load/performance testing under concurrent proof generation
-- Production nullifier set (Redis-backed) — in-memory only
+- Production nullifier set (Redis-backed) — in-memory only (lost on restart)
 - RapidSnark integration — snarkjs WASM is 4-6s, RapidSnark is ~100ms
 - Lit Protocol integration against a live Lit network (written, not tested)
+- claimRefund() path — partial withdrawals circuit-correct but SDK blocks them (funds would lock)

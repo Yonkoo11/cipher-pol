@@ -41,7 +41,6 @@ import {
 import { IPrivacyAdapter } from './types.js';
 import { PrivacyPoolsAdapter } from './adapters/privacy-pools.js';
 import { STRK20Adapter } from './adapters/strk20.js';
-import { PaymentBatcher } from './batcher.js';
 import {
   parseChallenge,
   buildPaymentHeader,
@@ -57,7 +56,6 @@ import {
 
 export class WraithAgent {
   private readonly adapter: IPrivacyAdapter;
-  private readonly batcher: PaymentBatcher;
   private readonly config: Required<WraithConfig>;
 
   constructor(config: WraithConfig, account?: Account) {
@@ -79,8 +77,6 @@ export class WraithAgent {
         this.config.starknetRpcUrl
       );
     }
-
-    this.batcher = new PaymentBatcher();
   }
 
   /**
@@ -174,7 +170,16 @@ export class WraithAgent {
       throw new Error('Note is already spent. Each note can only be used once.');
     }
 
-    // 1. Probe the endpoint — should return 402
+    // 1. Probe the endpoint — should return 402.
+    //
+    // NOTE: the probe sends the full body (if any) once before proof generation,
+    // and again with the payment header. Two consequences:
+    //   a) The server receives the body on the 402 response path — most servers
+    //      ignore it, but it is sent. If the body is privacy-sensitive, consider
+    //      using a separate probe request (no body) first.
+    //   b) If init.body is a ReadableStream (consumed-once), the second fetch
+    //      will send an empty body. Use a Buffer, string, or JSON string body
+    //      if the body must be sent on the paid request.
     const probe = await fetch(url, init);
 
     if (probe.status !== 402) {
@@ -197,7 +202,13 @@ export class WraithAgent {
       artifacts
     );
 
-    // Attach ERC-8004 agent identity to proof (if configured)
+    // Attach ERC-8004 agent identity to proof (if configured).
+    //
+    // PRIVACY WARNING: if ERC8004Config includes starknetAddress, that address
+    // is embedded in the agentURI data-URI and sent to the server in the
+    // X-Payment-Proof header. The server will learn which Starknet address made
+    // this payment — defeating the ZK unlinking. Only set starknetAddress if
+    // you are intentionally sacrificing payment privacy for agent identity.
     if (this.config.erc8004) {
       const manifest = createAgentManifest(
         this.config.erc8004,
@@ -220,6 +231,14 @@ export class WraithAgent {
       },
     });
 
+    // Mark the note as spent after a successful payment so the caller
+    // doesn't accidentally try to reuse it. The server will also reject
+    // a replay (NullifierSet), but flagging it client-side prevents
+    // wasted proof generation time on the second attempt.
+    if (result.ok) {
+      note.spent = true;
+    }
+
     return result;
   }
 
@@ -228,6 +247,14 @@ export class WraithAgent {
    *
    * The receipt follows the ERC-8004 off-chain feedback format and can be
    * submitted to the Reputation Registry to build the agent's reputation.
+   *
+   * PRIVACY NOTE: the receipt uses the nullifierHash (a public ZK signal) as
+   * the payment identifier — NOT the deposit txHash. The deposit txHash is an
+   * on-chain record that reveals which deposit funded this payment. Including it
+   * in a published receipt defeats the ZK unlinking. The nullifierHash is already
+   * public (it appears in the proof public inputs), so including it here adds no
+   * new information to an observer, but proves "I made a payment" without revealing
+   * "and here is my deposit."
    */
   async payWithReceipt(
     url: string,
@@ -236,12 +263,73 @@ export class WraithAgent {
     artifacts: ProverArtifacts,
     init?: RequestInit
   ): Promise<{ response: Response; receipt: AgentReceipt }> {
-    const response = await this.pay(url, note, amount, artifacts, init);
+    if (note.leafIndex === -1) {
+      throw new Error(
+        'Note has not been resolved yet (leafIndex=-1). ' +
+        'Call findNoteInTree() after the deposit is confirmed on-chain.'
+      );
+    }
+    if (note.spent) {
+      throw new Error('Note is already spent. Each note can only be used once.');
+    }
 
+    // Probe
+    const probe = await fetch(url, init);
+    let nullifierHash = '';
+
+    if (probe.status !== 402) {
+      const receipt = generatePaymentReceipt('', 'starknet-mainnet', '', url, amount, note.token, this.config.erc8004);
+      return { response: probe, receipt };
+    }
+
+    const challenge = parseChallenge(probe);
+    if (!challenge) {
+      throw new Error(`402 response missing valid Wraith payment challenge from ${url}`);
+    }
+
+    // Generate proof and capture nullifierHash for the receipt
+    const paymentProof = await (this.adapter as PrivacyPoolsAdapter).generatePaymentProof(
+      note,
+      challenge.payTo,
+      amount,
+      artifacts
+    );
+    nullifierHash = paymentProof.nullifierHash;
+
+    // PRIVACY WARNING: starknetAddress in ERC8004Config leaks payer identity to server.
+    // See pay() for the full warning.
+    if (this.config.erc8004) {
+      const manifest = createAgentManifest(
+        this.config.erc8004,
+        this.config.adapter,
+        this.adapter.getPrivacyScore().guarantee
+      );
+      paymentProof.agentURI = manifestToDataURI(manifest);
+      paymentProof.agentId = this.config.erc8004.agentId?.toString();
+    }
+
+    const paymentHeader = buildPaymentHeader(paymentProof);
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        ...(init?.headers ?? {}),
+        'X-Payment-Proof': paymentHeader,
+        'X-Payment-Scheme': X402_SCHEME,
+      },
+    });
+
+    if (response.ok) {
+      note.spent = true;
+    }
+
+    // Receipt uses nullifierHash as payment identifier (NOT deposit txHash).
+    // The nullifierHash is already public (in proof public inputs) so this
+    // adds no new information. The deposit txHash would reveal which on-chain
+    // deposit funded this payment — a complete deanonymization.
     const receipt = generatePaymentReceipt(
-      note.depositTxHash ?? '',
+      nullifierHash,
       'starknet-mainnet',
-      '',   // pool address not exposed here; caller can access via note or adapter
+      '',
       url,
       amount,
       note.token,

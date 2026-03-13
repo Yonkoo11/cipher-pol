@@ -160,6 +160,20 @@ export class PrivacyPoolsAdapter implements IPrivacyAdapter {
     if (amount > note.amount) {
       throw new Error(`Payment amount ${amount} exceeds note amount ${note.amount}`);
     }
+    // Partial withdrawals (amount < note.amount) are circuit-correct: the circuit
+    // commits refund = note.amount - amount via poseidonHash(nullifier, refund) and
+    // posts refundCommitmentHash as a public input. But there is no claimRefund()
+    // call path in v1 — the committed refund would be locked on-chain forever.
+    // Enforce full withdrawal only until a recovery path is implemented.
+    if (amount < note.amount) {
+      throw new Error(
+        `Partial withdrawals are not supported in v1. ` +
+        `Requested ${amount}, note contains ${note.amount}. ` +
+        `Pass amount === note.amount to withdraw the full deposit. ` +
+        `(The circuit supports partial withdrawals via refundCommitmentHash, ` +
+        `but no claimRefund() path exists yet — partial amounts would be locked forever.)`
+      );
+    }
 
     // Step 1: Fetch current pool state (Merkle root + all deposits)
     const { root, tree, leafIndex } = await this.buildPoolState(note.commitment);
@@ -308,48 +322,59 @@ export class PrivacyPoolsAdapter implements IPrivacyAdapter {
    * The commitment for each deposit is reconstructed from keys[2..3] (u256).
    */
   async fetchAllDeposits(): Promise<DepositEvent[]> {
-    // Query all events from this pool contract since deployment
-    // starknet_getEvents supports filtering by contract address and key
-    const body = {
-      jsonrpc: '2.0',
-      method: 'starknet_getEvents',
-      params: [
-        {
-          address: this.poolAddress,
-          keys: [[DEPOSIT_SELECTOR]],
-          from_block: { block_number: 0 },
-          to_block: 'pending',
-          chunk_size: 1000,
-        },
-      ],
-      id: 1,
+    // Paginate through all Deposit events — starknet_getEvents returns at most
+    // chunk_size=1000 events per call. If continuation_token is present, more
+    // pages follow. Without pagination, pools with >1000 deposits would produce
+    // a truncated (wrong) Merkle tree, generating proofs that the on-chain
+    // verifier rejects.
+    type RawEvent = {
+      keys: string[];
+      data: string[];
+      block_number: number;
+      transaction_hash: string;
+      from_address: string;
     };
 
-    const response = await fetch(this.rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const allEvents: RawEvent[] = [];
+    let continuationToken: string | undefined;
 
-    const data = await response.json() as {
-      result?: {
-        events: Array<{
-          keys: string[];
-          data: string[];
-          block_number: number;
-          transaction_hash: string;
-          from_address: string;
-        }>;
-        continuation_token?: string;
+    do {
+      const params: Record<string, unknown> = {
+        address: this.poolAddress,
+        keys: [[DEPOSIT_SELECTOR]],
+        from_block: { block_number: 0 },
+        to_block: 'pending',
+        chunk_size: 1000,
       };
-      error?: unknown;
-    };
+      if (continuationToken) {
+        params.continuation_token = continuationToken;
+      }
 
-    if (data.error) {
-      throw new Error(`starknet_getEvents failed: ${JSON.stringify(data.error)}`);
-    }
+      const response = await fetch(this.rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'starknet_getEvents',
+          params: [params],
+          id: 1,
+        }),
+      });
 
-    const events = data.result?.events ?? [];
+      const data = await response.json() as {
+        result?: { events: RawEvent[]; continuation_token?: string };
+        error?: unknown;
+      };
+
+      if (data.error) {
+        throw new Error(`starknet_getEvents failed: ${JSON.stringify(data.error)}`);
+      }
+
+      allEvents.push(...(data.result?.events ?? []));
+      continuationToken = data.result?.continuation_token;
+    } while (continuationToken);
+
+    const events = allEvents;
 
     return events.map((e) => {
       // Event layout (from pool.cairo Deposit event struct):

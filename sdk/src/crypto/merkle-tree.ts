@@ -148,7 +148,10 @@ export class IncrementalMerkleTree {
       tempTree.insert(this.leaves[i]);
     }
 
-    // Now extract the path for our leaf
+    // Now extract the path for our leaf.
+    // Shared cache across all _getSubtreeHash calls in this proof generation —
+    // sibling nodes at the same position are not recomputed.
+    const subtreeCache = new Map<string, bigint>();
     let currentIndex = index;
     for (let level = 0; level < this.depth; level++) {
       const isRightChild = currentIndex % 2 === 1;
@@ -163,7 +166,7 @@ export class IncrementalMerkleTree {
         // It is non-empty iff any leaf exists in that range.
         // Using (currentIndex + 1) << level avoids the O(2^depth) recursion on empty subtrees.
         if (((currentIndex + 1) << level) < this.leaves.length) {
-          pathElements.push(this._getSubtreeHash(level, currentIndex ^ 1));
+          pathElements.push(this._getSubtreeHash(level, currentIndex ^ 1, subtreeCache));
         } else {
           // Right sibling subtree is entirely empty
           pathElements.push(ZERO_VALUES[level]);
@@ -185,19 +188,31 @@ export class IncrementalMerkleTree {
   /**
    * Get the hash for the subtree rooted at a given position.
    * position is the node index at the given level (0-indexed from left).
+   *
+   * Memoized: each (level, position) is computed once per getProof() call.
+   * Without memoization, a sparse subtree at level L costs O(2^L) recursive
+   * calls (most of which return ZERO_VALUES). With the cache it's O(nodes visited).
    */
-  private _getSubtreeHash(level: number, position: number): bigint {
+  private _getSubtreeHash(
+    level: number,
+    position: number,
+    cache: Map<string, bigint> = new Map()
+  ): bigint {
+    const key = `${level}:${position}`;
+    const cached = cache.get(key);
+    if (cached !== undefined) return cached;
+
+    let result: bigint;
     if (level === 0) {
-      // Leaf level
-      const leafIndex = position;
-      return leafIndex < this.leaves.length ? this.leaves[leafIndex] : ZERO_VALUES[0];
+      result = position < this.leaves.length ? this.leaves[position] : ZERO_VALUES[0];
+    } else {
+      const left  = this._getSubtreeHash(level - 1, position * 2,     cache);
+      const right = this._getSubtreeHash(level - 1, position * 2 + 1, cache);
+      result = poseidonHash(left, right);
     }
 
-    const leftPos = position * 2;
-    const rightPos = position * 2 + 1;
-    const left = this._getSubtreeHash(level - 1, leftPos);
-    const right = this._getSubtreeHash(level - 1, rightPos);
-    return poseidonHash(left, right);
+    cache.set(key, result);
+    return result;
   }
 
   /** Current root of the tree */

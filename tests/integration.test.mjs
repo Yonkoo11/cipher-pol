@@ -239,6 +239,67 @@ async function runTests() {
   assert(felts.length === 30, `proofFelts length is 30 (got ${felts.length})`);
   assert(felts.every(f => f >= 0n), 'all felts are non-negative');
 
+  // ─── Test 7: Adversarial — refundCommitmentHash constraint ───────────────
+  //
+  // C1 fix added this constraint to association.circom:
+  //   (refundCommitmentHash - poseidon(nullifier, refund)) * refund === 0
+  //
+  // Attack: prover passes refund > 0 but wrong refundCommitmentHash.
+  // Without the constraint, prover could claim any refund destination.
+  // With the constraint, fullProve must throw (witness computation fails).
+  //
+  // We test both:
+  //   (a) wrong hash + nonzero refund → must throw
+  //   (b) correct hash + nonzero refund → must succeed
+  console.log('\nTest 7: Adversarial — refundCommitmentHash constraint (~20s each)');
+
+  const refundAmount = 500_000n; // nonzero refund
+  // Circuit enforces: amount (to recipient) === commitmentAmount - refund
+  // So we must set amount correctly in both attack and valid cases.
+  const recipientAmount = amount - refundAmount;
+
+  // (a) Wrong hash: refund=500000, refundCommitmentHash=999 (attacker's chosen value)
+  //     amount is set correctly so the balance constraint passes;
+  //     only the refundCommitmentHash constraint should reject this.
+  const attackInput = {
+    ...input,
+    refund: refundAmount.toString(),
+    refundCommitmentHash: '999',      // not poseidon(nullifier, refund)
+    amount: recipientAmount.toString(), // circuit: amount === commitmentAmount - refund
+  };
+
+  let attackThrew = false;
+  try {
+    await snarkjs.groth16.fullProve(attackInput, WASM_PATH, ZKEY_PATH);
+  } catch {
+    attackThrew = true;
+  }
+  assert(attackThrew, 'fullProve rejects wrong refundCommitmentHash with nonzero refund (C1 constraint holds)');
+
+  // (b) Correct hash: refundCommitmentHash = poseidon2([nullifier, refund])
+  //     This should succeed — constraint is satisfied.
+  const correctRefundHash = hash(nullifier, refundAmount);
+  // When refund > 0, the circuit enforces: amount = (amount - refund) + refund
+  // recipient amount becomes (amount - refund), which must be >= 0
+  // Use a note where amount > refundAmount to avoid underflow in circuit
+  const validRefundInput = {
+    ...input,
+    refund: refundAmount.toString(),
+    refundCommitmentHash: correctRefundHash.toString(),
+    amount: recipientAmount.toString(), // circuit: amount === commitmentAmount - refund
+  };
+
+  let validRefundProof = false;
+  try {
+    const result = await snarkjs.groth16.fullProve(validRefundInput, WASM_PATH, ZKEY_PATH);
+    const refundValid = await snarkjs.groth16.verify(vk, result.publicSignals, result.proof);
+    validRefundProof = refundValid;
+  } catch (err) {
+    console.error(`  ✗ FAIL: valid refund threw: ${err.message.split('\n')[0]}`);
+    failed++;
+  }
+  assert(validRefundProof, 'fullProve accepts correct refundCommitmentHash with nonzero refund');
+
   // ─── Summary ──────────────────────────────────────────────────────────────
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`Results: ${passed} passed, ${failed} failed`);
@@ -251,6 +312,7 @@ async function runTests() {
     console.log('  - Merkle proof structure correct (depth=24)');
     console.log('  - Groth16 proof generates and verifies locally');
     console.log('  - Proof serialization: 30 felt252 values (correct for pool.withdraw())');
+    console.log('  - refundCommitmentHash constraint rejects wrong hash (C1 attack path blocked)');
     console.log('');
     console.log('What was NOT tested:');
     console.log('  - Pool contract deposit/withdrawal (requires deployed pool)');

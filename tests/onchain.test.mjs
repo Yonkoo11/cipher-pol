@@ -44,7 +44,9 @@ const STARKLI_ACCT        = '/tmp/devnet-account.json';
 // CASM hashes that devnet 0.7.2's bundled compiler produces for these Sierra files.
 // Starkli 0.4.2 bundles a different compiler (2.9.4) than devnet, so we bypass
 // starkli's recompilation with --casm-hash and let devnet verify against its own.
-const VERIFIER_CASM_HASH  = '0x4ab33c632f8f86806bfc63a7316a9dc3de26a5226732ad764eea9b4f0d2b495';
+// Verifier rebuilt with new verification_key.json (refundCommitmentHash constraint added 2026-03-12).
+// ECIP + Pool unchanged; their CASM hashes still match devnet 0.7.2's bundled compiler.
+const VERIFIER_CASM_HASH  = '0x5a4520f3c48d98c3090e68df7aee9e60e2c28543fe8b1ce8d25152caecb5906';
 const POOL_CASM_HASH      = '0x668d8e903eaf4a0199c302fb03f64b2474b2fc323c222d57a48a45234b40e76';
 const ECIP_CASM_HASH      = '0x763b4a30ba03df108a073f0380af6a1397eaac70e8bd78caf6a4127e9a5f245';
 

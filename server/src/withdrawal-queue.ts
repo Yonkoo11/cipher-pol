@@ -35,7 +35,7 @@
  * - Set garagaPath to the garaga installation dir (contains hydra/)
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -136,30 +136,39 @@ export class WithdrawalQueue {
   async flush(): Promise<void> {
     if (this.queue.length === 0) return;
 
-    const batch = this.queue.splice(0);
-    console.log(`[WithdrawalQueue] Flushing ${batch.length} withdrawal(s)...`);
+    // Snapshot the current queue WITHOUT removing items.
+    // Items stay in this.queue until either confirmed on-chain or permanently failed.
+    // This means a crash mid-flush leaves unprocessed items for the next interval,
+    // rather than silently dropping them (the old splice(0) behaviour).
+    // NOTE: this still loses items on process exit — Redis backing is the production fix.
+    const toProcess = this.queue.slice();
+    console.log(`[WithdrawalQueue] Flushing ${toProcess.length} withdrawal(s)...`);
 
-    for (const item of batch) {
+    for (const item of toProcess) {
       try {
         await this.submitWithdrawal(item);
+        // Success: remove from the live queue
+        const idx = this.queue.indexOf(item);
+        if (idx !== -1) this.queue.splice(idx, 1);
       } catch (err) {
         item.attempts += 1;
 
-        if (item.attempts < this.config.maxAttempts) {
-          console.error(
-            `[WithdrawalQueue] Withdrawal failed (attempt ${item.attempts}/${this.config.maxAttempts}), ` +
-            `re-queued: nullifier=${item.nullifierHash.slice(0, 20)}...`,
-            err
-          );
-          this.queue.push(item);
-        } else {
+        if (item.attempts >= this.config.maxAttempts) {
+          // Permanently failed: remove and notify
+          const idx = this.queue.indexOf(item);
+          if (idx !== -1) this.queue.splice(idx, 1);
           const error = err instanceof Error ? err : new Error(String(err));
           console.error(
-            `[WithdrawalQueue] DROPPED after ${this.config.maxAttempts} attempts: ` +
-            `nullifier=${item.nullifierHash.slice(0, 20)}...`,
+            `[WithdrawalQueue] DROPPED after ${this.config.maxAttempts} attempts`,
             error
           );
           this.config.onFailed(item.nullifierHash, error);
+        } else {
+          // Transient failure: item stays in queue for next flush interval
+          console.error(
+            `[WithdrawalQueue] Withdrawal failed (attempt ${item.attempts}/${this.config.maxAttempts}), will retry at next flush`,
+            err
+          );
         }
       }
     }
@@ -205,8 +214,14 @@ export class WithdrawalQueue {
     ].join('\n');
     fs.writeFileSync(pyPath, pyScript);
 
+    // execFileSync (not execSync) — avoids shell expansion/injection.
+    // pythonPath and pyPath are server-controlled, but execFile ensures no
+    // shell metacharacters in either path can execute additional commands.
+    // Blocking the event loop is a known limitation; garaga calldata generation
+    // takes ~1-3s. For high-throughput servers, move this to a worker_threads
+    // pool to avoid blocking the accept loop.
     try {
-      execSync(`${this.config.pythonPath} ${pyPath}`, {
+      execFileSync(this.config.pythonPath, [pyPath], {
         timeout: 60_000,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -234,10 +249,10 @@ export class WithdrawalQueue {
   }
 
   private async submitWithdrawal(item: QueuedWithdrawal): Promise<void> {
-    console.log(
-      `[WithdrawalQueue] Submitting withdrawal: ` +
-      `nullifier=${item.nullifierHash.slice(0, 20)}..., amount=${item.amount}`
-    );
+    // Do NOT log nullifierHash — even a prefix can be used to correlate
+    // HTTP request timestamps with on-chain withdrawal events.
+    // Use queue index or item count for operational logging instead.
+    console.log(`[WithdrawalQueue] Submitting withdrawal: amount=${item.amount}, attempt=${item.attempts + 1}`);
 
     // Reconstruct garaga 0.15.3 calldata from the 30-felt HTTP transport encoding.
     // The pool.withdraw() entry point expects full_proof_with_hints format, NOT

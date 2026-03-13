@@ -3,7 +3,7 @@ include "hash.circom";
 include "merkle_tree.circom";
 include "./circomlib/comparators.circom";
 
-// computes Pedersen(nullifier + secret)
+// computes Poseidon2(secret, nullifier) then Poseidon2(temp, amount) → commitment; HashOne(nullifier) → nullifierHash
 template CommitmentHasher() {
     signal input nullifier;
     signal input secret;
@@ -53,6 +53,17 @@ template AssociationChecker(levels) {
         tree.pathElements[i] <== pathElements[i];
         tree.pathIndices[i] <== pathIndices[i];
     }
+
+    // Constrain refundCommitmentHash: either refund=0 OR refundCommitmentHash=Hash([nullifier,refund]).
+    // Without this, a prover could claim any refundCommitmentHash, enabling a fake claimRefund()
+    // once that entry point exists. Constraint: (refundCommitmentHash - Hash([nullifier,refund])) * refund === 0
+    signal computedRefundHash;
+    computedRefundHash <== Hash()([nullifier, refund]);
+    signal refundHashGap;
+    refundHashGap <== refundCommitmentHash - computedRefundHash;
+    signal refundHashCheck;
+    refundHashCheck <== refundHashGap * refund;
+    refundHashCheck === 0;
 
     // Add hidden signals to make sure that tampering with recipient or fee will invalidate the snark proof
     // Most likely it is not required, but it's better to stay on the safe side and it only takes 2 constraints

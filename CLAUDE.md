@@ -85,6 +85,12 @@ When discussing proof system security:
 4. **Anonymity set = pool size** — small pool = trivial deanonymization.
 5. **Depositor address visible on-chain** — Wraith is link-private, not identity-private.
 6. **BN254 is not quantum-resistant** — v2 STRK20Adapter with STARK proofs is the path.
+7. **No relay** — server operator sees nullifierHash + Starknet withdrawal tx. Full correlation graph. Documented.
+8. **Partial withdrawals blocked** — circuit supports refundCommitmentHash but no claimRefund() path. generatePaymentProof() enforces amount === note.amount with a hard error until recovery is implemented.
+9. **fetchAllDeposits pagination (FIXED)** — was truncating at 1000 events. Now follows continuation_token until exhausted.
+10. **agentURI leaks payer identity** — if ERC8004Config.starknetAddress is set, it is embedded in the X-Payment-Proof header. Server learns the payer's Starknet address. Warning documented in agent.ts.
+11. **WithdrawalQueue blocks event loop** — execFileSync for garaga takes ~1-3s per withdrawal. Production needs worker_threads pool.
+12. **refundCommitmentHash (FIXED)** — was unconstrained in circuit. Added `(hash - computed) * refund === 0` constraint. Trusted setup re-run (2026-03-12).
 
 ---
 
@@ -103,5 +109,5 @@ node tests/e2e.test.mjs         # 28 tests — HTTP x402 end-to-end
 node tests/withdrawal.test.mjs  # 7 phases — WithdrawalQueue + garaga
 
 # Circuit (if pool.circom changed)
-cd circuits && npm run setup    # re-generates pool_final.zkey + pool.wasm
+bash circuits/setup.sh    # re-generates pool_final.zkey + pool.wasm (delete target/ artifacts first)
 ```

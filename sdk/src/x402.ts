@@ -95,6 +95,11 @@ export function buildPaymentHeader(proof: X402PaymentProof): string {
  * Decode an X-Payment-Proof header value.
  */
 export function parsePaymentHeader(header: string): X402PaymentProof {
+  // 64 KiB limit: a valid 30-felt proof JSON is ~4 KiB. Anything larger is
+  // either malformed or a DoS attempt (JSON.parse on huge strings is O(n)).
+  if (header.length > 65_536) {
+    throw new Error(`X-Payment-Proof header too large: ${header.length} chars (max 65536)`);
+  }
   return JSON.parse(Buffer.from(header, 'base64').toString('utf8'));
 }
 
