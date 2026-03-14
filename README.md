@@ -75,19 +75,19 @@ node tests/withdrawal.test.mjs    # withdrawal queue + garaga
 
 | Package | Path | Description |
 |---------|------|-------------|
-| `wraith-agent` | `sdk/` | SDK for agents: deposit, generate ZK proofs, pay via x402 |
-| `wraith-server` | `server/` | Express middleware: verify proofs, prevent double-spend, queue withdrawals |
+| `cipher-pol-agent` | `sdk/` | SDK for agents: deposit, generate ZK proofs, pay via x402 |
+| `cipher-pol-server` | `server/` | Express middleware: verify proofs, prevent double-spend, queue withdrawals |
 
 ### Agent SDK
 
 ```ts
-import { WraithAgent } from './sdk/src/agent';
+import { CipherPolAgent } from './sdk/src/agent';
 import { Account, RpcProvider } from 'starknet';
 
 const provider = new RpcProvider({ nodeUrl: RPC_URL });
 const account  = new Account(provider, ADDRESS, PRIVATE_KEY);
 
-const agent = new WraithAgent({
+const agent = new CipherPolAgent({
   adapter: 'privacy-pools',
   poolAddress: POOL_ADDRESS,
   starknetRpcUrl: RPC_URL,
@@ -108,11 +108,11 @@ const response = await agent.pay('https://api.example.com/v1/generate', {
 
 ```ts
 import express from 'express';
-import { wraithPaywall } from './server/src/middleware';
+import { cipherPolPaywall } from './server/src/middleware';
 
 const app = express();
 
-app.use('/v1/generate', wraithPaywall({
+app.use('/v1/generate', cipherPolPaywall({
   amount: 100n,
   poolAddress: POOL_ADDRESS,
   account,        // server's Starknet account for withdrawals

@@ -1,4 +1,4 @@
-# Wraith Protocol — Project Rules
+# Cipher Pol — Project Rules
 
 ## Privacy Critique Enforcement
 
@@ -83,7 +83,7 @@ When discussing proof system security:
 2. **In-memory NullifierSet** — lost on restart. Need Redis backing for production.
 3. **Timing oracle at flushIntervalMs=0** — documented in THREAT_MODEL.md.
 4. **Anonymity set = pool size** — small pool = trivial deanonymization.
-5. **Depositor address visible on-chain** — Wraith is link-private, not identity-private.
+5. **Depositor address visible on-chain** — Cipher Pol is link-private, not identity-private.
 6. **BN254 is not quantum-resistant** — v2 STRK20Adapter with STARK proofs is the path.
 7. **No relay** — server operator sees nullifierHash + Starknet withdrawal tx. Full correlation graph. Documented.
 8. **Partial withdrawals blocked** — circuit supports refundCommitmentHash but no claimRefund() path. generatePaymentProof() enforces amount === note.amount with a hard error until recovery is implemented.
