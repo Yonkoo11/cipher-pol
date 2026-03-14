@@ -2,5 +2,5 @@
 version = 1
 
 [[package]]
-name = "wraith_protocol"
+name = "cipher_pol"
 version = "0.1.0"
