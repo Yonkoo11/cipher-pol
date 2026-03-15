@@ -1,4 +1,4 @@
-# Wraith Protocol — Threat Model
+# Cipher Pol — Threat Model
 
 Version: v1 (Groth16 / Ekubo Privacy Pools)
 Date: March 2026
@@ -8,9 +8,9 @@ payment path.
 
 ---
 
-## What Wraith Does
+## What Cipher Pol Does
 
-Wraith enables an AI agent to pay for API access without the API server learning
+Cipher Pol enables an AI agent to pay for API access without the API server learning
 which on-chain identity made the payment. The agent deposits into a shared pool,
 waits for other deposits to grow the anonymity set, and then generates a
 zero-knowledge proof linking it to the deposited funds — without revealing which
@@ -91,9 +91,9 @@ would capture the full base64 proof in the access log, recording the
 nullifierHash alongside the request timestamp. This creates a persistent record
 that links HTTP request times to on-chain nullifiers.
 
-v1.1 fix: `wraithPaywall()` deletes `X-Payment-Proof` and `X-Payment-Scheme`
+v1.1 fix: `cipherPolPaywall()` deletes `X-Payment-Proof` and `X-Payment-Scheme`
 headers before calling `next()`. Log sanitization for the request URL and IP
-is outside Wraith's scope — standard advice applies (no-logging mode, Tor, etc.).
+is outside Cipher Pol's scope — standard advice applies (no-logging mode, Tor, etc.).
 
 ---
 
@@ -126,7 +126,7 @@ to Tornado Cash v1 — the deposit itself is public.
 **Small anonymity sets:**
 If the pool has 3 deposits total, a chain observer can narrow candidates to 3
 addresses. With 1000 deposits, the observer only knows "it was one of 1000".
-**Do not use Wraith for private payments when the pool has fewer than ~50
+**Do not use Cipher Pol for private payments when the pool has fewer than ~50
 deposits that you didn't make yourself.**
 
 **Timing correlation:**
@@ -137,7 +137,7 @@ at time T+N (hours, days) with many deposits between.
 **Amount correlation:**
 If you deposit exactly 3000 USDC and the API costs exactly 3000 USDC, and yours
 is the only deposit of that amount, the withdrawal amount narrows candidates.
-Wraith's PaymentBatcher rounds amounts to standard buckets to mitigate this.
+Cipher Pol's PaymentBatcher rounds amounts to standard buckets to mitigate this.
 
 **Traffic analysis:**
 The API server sees that *someone* called the API at timestamp T. Combined with
@@ -225,7 +225,7 @@ Optional use cases:
   decrypted later using the agent's key (cross-session note recovery)
 - Encrypted audit logs for compliance
 
-What Lit does NOT do in Wraith v1:
+What Lit does NOT do in Cipher Pol v1:
 - Does NOT gate proof generation
 - Does NOT decrypt on the server
 - Is NOT on the critical payment path
@@ -239,7 +239,7 @@ That design has been removed.
 
 ## Comparison to Tornado Cash
 
-| Property | Tornado Cash v1 | Wraith v1 |
+| Property | Tornado Cash v1 | Cipher Pol v1 |
 |----------|----------------|-----------|
 | Deposit visible | YES | YES |
 | Withdrawal receiver visible | YES | YES |
@@ -249,7 +249,7 @@ That design has been removed.
 | Application | Token mixing | x402 API payments |
 | Payment recipients | User-specified address | API servers |
 
-Wraith is Tornado Cash applied to HTTP API payments. The privacy properties
+Cipher Pol is Tornado Cash applied to HTTP API payments. The privacy properties
 are the same. The implementation uses the same Circom circuit patterns.
 
 ---

@@ -2,6 +2,7 @@
   "name": "cipher-pol-agent",
   "version": "0.1.0",
   "description": "Private AI agent payments on Starknet",
+  "homepage": "https://yonkoo11.github.io/cipher-pol/",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
