@@ -168,10 +168,11 @@ if (!capacityTokenId) {
   await test('decrypt and recover (secret, nullifier)', async () => {
     let decrypted;
     let lastErr;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       if (attempt > 0) {
-        console.log(`  (rate limited, retrying in 8s...)`);
-        await new Promise(r => setTimeout(r, 8000));
+        const wait = 12000;
+        console.log(`  (rate limited, retrying in ${wait/1000}s... attempt ${attempt+1}/5)`);
+        await new Promise(r => setTimeout(r, wait));
       }
       try {
         decrypted = await decryptToString({
@@ -218,15 +219,11 @@ function _verifyDecrypted(decrypted) {
 }
 
 // ── Step 5: Wrong signer is rejected ─────────────────────────────────────────
-// Only run if decrypt succeeded — otherwise rate limit will swallow the rejection.
+// Run regardless of rate-limit status. If attacker also gets rate-limited, skip.
+// If attacker gets access-denied (or any rejection), the access control is working.
 await new Promise(r => setTimeout(r, 3000));
 
-if (!decryptSucceeded) {
-  skipTest(
-    'wrong signer is rejected (access condition enforced)',
-    'Skipped — decrypt is rate-limited, cannot distinguish rejection from rate limit'
-  );
-} else {
+{
   await test('wrong signer is rejected (access condition enforced)', async () => {
     const attacker = ethers.Wallet.createRandom();
     const latestBlockhash = await client.getLatestBlockhash();
