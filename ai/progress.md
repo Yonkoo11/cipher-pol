@@ -1,167 +1,93 @@
-# Wraith Protocol — Progress
+# Cipher Pol — Progress
 
-## Status: E2E VERIFIED + COMMITTED (2026-03-12)
+Last updated: 2026-03-15
+
+## Status: SUBMISSION-READY (devnet verified, landing page live)
+
+---
 
 ## What's Done
 
-### TypeScript SDK — COMPILED CLEAN, VERIFIED
-- `tsc --noEmit` passes clean
-- Types, PrivacyPoolsAdapter, STRK20Adapter (stub), PaymentBatcher, x402 middleware, WraithAgent
-- Lit Protocol v7 integration: encryptNoteForAPI(), decryptNoteFromAgent()
-- Poseidon hash VERIFIED: poseidon-lite == Ekubo's circuit (same parameters, confirmed numerically)
+### Rename (complete, 2026-03-15)
+- Wraith Protocol → Cipher Pol across all source files
+- Package: `wraith-agent` → `cipher-pol-agent`, `wraith-server` → `cipher-pol-server`
+- GitHub repo renamed: Yonkoo11/cipher-pol
+- Landing page URL: https://yonkoo11.github.io/cipher-pol/
+- All test files, README, THREAT_MODEL.md, CLAUDE.md updated
 
-### Cairo Contracts — SCARB BUILD PASSES
-- `scarb build` produces WraithAgent.contract_class.json + ReceiptVault.contract_class.json
-- Cairo target: cairo/target/dev/
+### Tests (all passing, 2026-03-12, re-confirmed post-rename)
+| Test | Count | Status |
+|------|-------|--------|
+| onchain.test.mjs | 8/8 | PASS — devnet deploy, deposit, prove, withdraw |
+| server.test.mjs | 13/13 | PASS — middleware, 402 flow, nullifier dedup |
+| integration.test.mjs | 26/26 | PASS — circuit, Merkle, proof gen, serialization |
+| e2e.test.mjs | 28/28 | PASS — full HTTP x402 challenge → ZK proof → 200 |
+| withdrawal.test.mjs | 7/7 phases | PASS — garaga calldata 2918 felts, on-chain withdraw |
+| lit.test.mjs | 3/3 pass | PARTIAL — decrypt/access control unverified (see below) |
 
-### Circuit Trusted Setup — COMPLETE
-- circom v2.2.3 installed at ~/bin/circom
-- pool.circom COMPILED: 14282 constraints, 29138 wires, 24-level Merkle tree
-- Hermez Phase 1 ptau downloaded (72MB, n=16, trusted ceremony)
-- pool_final.zkey generated (12MB)
-- verification_key.json exported (7 public inputs, groth16/bn128)
+### Key Bug Fixes (2026-03-12, committed)
+1. deposit() calldata: was passing full commitment; should pass hash(secret, nullifier) only
+2. fetchAllDeposits(): misread Deposit event structure
+3. extractPublicInputs(): no bounds check on zkProof array
+4. Signal indices: refundCommitmentHash=4, amount=5 (were reversed)
+5. serializeProofToFelts(): BigInt("0x" + decimal) prepended hex prefix to decimal strings
+   → garaga is_on_curve rejected them. Fixed to BigInt(coord) directly.
 
-### Proof Generation — VERIFIED WORKING
-- Groth16 proof generates in ~4-6s (snarkjs WASM)
-- Proof verifies locally against verification_key.json
-- generateWithdrawProof() now verifies inline via snarkjs.zKey.exportVerificationKey() (1.15s overhead)
-- Correct witness computation confirmed:
-  - commitment = poseidon2([poseidon2([secret, nullifier]), amount])
-  - nullifierHash = poseidon2([nullifier, nullifier])  ← HashOne(x) = Hash([x, x])
+### Cairo / Circuit
+- scarb build passes, produces cipher_pol_*.contract_class.json
+- Groth16 circuit: 14,282 constraints, 24-level Merkle tree
+- garaga 0.15.3 calldata: 2918 felts, accepted by deployed verifier
+- VERIFIER_CASM_HASH: 0x5a4520f3c48d98c3090e68df7aee9e60e2c28543fe8b1ce8d25152caecb5906
 
-### Bug Fixes This Session (2026-03-12)
-1. CRITICAL: deposit() calldata — was passing full commitment H(H(s,n), amount);
-   pool.deposit() takes H(s,n). Pool computes H(H(s,n), amount) internally.
-   Fixed: poseidonHash(secret, nullifier) passed as secret_and_nullifier_hash.
+### Lit Protocol (partial)
+- Steps 1-3 verified: connect to Datil, encryptString, getSessionSigs SIWE
+- Steps 4-5 UNVERIFIED: decrypt + access control enforcement
+- Blocker: Chronicle Yellowstone faucet non-functional, Datil sunsets 2026-04-01
+- Action needed: migrate to Lit v3 Chipotle (not done — optional feature, not on critical path)
 
-2. CRITICAL: fetchAllDeposits() misread Deposit event.
-   Event emits secret_and_nullifier_hash in keys[2..3], NOT the Merkle leaf.
-   Pool stores hash(snhash, amount) in tree. Fixed: reconstruct leaf from event data.
+### Frontend
+- Deployed: https://yonkoo11.github.io/cipher-pol/
+- OG/Twitter meta tags added
+- All GitHub links point to cipher-pol repo
+- Removed dev preview files (preview.html, preview-d1/d2/d3.html)
+- Removed dev Playwright scripts
 
-3. HIGH: extractPublicInputs() — silent ?? '0' on out-of-bounds zkProof array.
-   Now throws with descriptive error if zkProof.length < 30.
+---
 
-4. MEDIUM: generateWithdrawProof() — no local proof verification.
-   Added snarkjs.groth16.verify() after fullProve(). Fails fast on zkey/circuit mismatch.
+## What's NOT Done
 
-5. COMMENT: poseidon.ts claimed "pool.cairo deposit() takes commitment" — wrong.
-   Corrected to say pool takes H(s,n).
-
-### On-Chain Tests — 8/8 PASSED (post-bugfix)
-Tests: tests/onchain.test.mjs — 8/8 PASSED with deposit fix
-- pool.deploy() + verifier.deploy() via devnet seed 42
-- deposit() accepted (correct H(s,n) calldata), Merkle root updated on-chain
-- Groth16 proof computed in 4-6s, verifies locally
-- garaga 0.15.3 calldata (2918 felts) generated correctly
-- withdraw() accepted on-chain, tokens transferred
-
-### Bug Fixes (2nd session, 2026-03-12)
-6. CRITICAL: extractPublicInputs() — wrong signal index for amount vs refundCommitmentHash.
-   snarkjs orders public signals by definition position in component body, NOT the main
-   public [] declaration. In pool.circom, refundCommitmentHash is defined before amount.
-   Correct indices: refundCommitmentHash=4, amount=5 (was reversed: amount=4, rch=5).
-   This caused "Proof amount 0 < required X" on every real proof submission.
-   Fixed in sdk/src/x402.ts + comment updated with explanation.
-
-### E2E HTTP Payment Test — 28/28 PASSED (2026-03-12)
-Tests: tests/e2e.test.mjs — 28/28 PASSED (COMMITTED)
-- Real devnet deposit (ETH approve + pool.deposit with correct H(s,n))
-- Real Groth16 proof generation via snarkjs (~6s), verified locally
-- Real HTTP wraithPaywall middleware (Express server)
-- 402 challenge: correct scheme, payTo, poolAddress
-- 200 response: server accepted real ZK proof, served protected resource
-- Privacy invariants: no depositor address, txHash, or secret in withdrawal queue
-- Replay prevention: same nullifier on retry → 402
-Run: node scripts/rpc-proxy.mjs & && node tests/e2e.test.mjs
-
-### Frontend — BUILT (not deployed)
-- docs/index.html: GitHub Pages static site
-- Sections: hero (animated terminal), how-it-works (5-step flow), privacy matrix,
-  proof system table, TypeScript code examples, v1/v2 upgrade cards, honest limits
-- Design: dark theme, monospace, technical — no generic AI slop
-- docs/THREAT_MODEL.md: updated with verified test results
-
-## File Map
-```
-sdk/src/             — COMPILED TO dist/
-  types.ts, agent.ts, batcher.ts, x402.ts, lit.ts
-  adapters/privacy-pools.ts (deposit bug fixed), adapters/strk20.ts (stub)
-  crypto/poseidon.ts (comment fixed), prover.ts (local verify added), index.ts
-  types/snarkjs.d.ts
-server/src/          — WRITTEN, NOT COMPILED (no server tsconfig)
-  middleware.ts, withdrawal-queue.ts, demo-server.ts
-cairo/src/           — SCARB BUILD PASSES
-  lib.cairo, interfaces.cairo, wraith_agent.cairo, receipt_vault.cairo
-circuits/
-  pool.circom + all deps (circomlib/ + association/hash/merkle)
-  target/pool.r1cs, pool_js/pool.wasm, pool_final.zkey, verification_key.json
-docs/
-  index.html (GitHub Pages frontend)
-  THREAT_MODEL.md (updated)
-scripts/rpc-proxy.mjs
-```
-
-## Infrastructure
-- scripts/rpc-proxy.mjs rewrites l2_gas_consumed→gas_consumed for starknet.js 6.24.1 compat
-- Run: `node scripts/rpc-proxy.mjs &` then `node tests/onchain.test.mjs`
-
-### Bug Fixes (3rd session, 2026-03-12) — withdrawal.test.mjs
-7. CRITICAL: serializeProofToFelts used toBigInt(coord) which prepended "0x" to decimal
-   coordinate strings from snarkjs/ffjavascript. snarkjs returns F.toObject() → o.toString(10)
-   = decimal strings. Prepending "0x" produced wrong BN254 field values that failed garaga's
-   is_on_curve check with ValueError: Point G1Point(...) is not on the curve CurveID.BN254.
-   Fix: BigInt(coord) directly (no hex prefix) in prover.ts + both test files.
-   This was invisible to 28/28 e2e tests because server middleware only checks public signals.
-
-### WithdrawalQueue + garaga path — VERIFIED (2026-03-12)
-Tests: tests/withdrawal.test.mjs — 7/7 phases PASSED
-- Phase 1: devnet deploy ✓
-- Phase 2: deposit on-chain ✓
-- Phase 3: Merkle root matches ✓
-- Phase 4: Groth16 proof generated + verifies locally ✓
-- Phase 5: 30-felt HTTP transport format correct ✓
-- Phase 6: garaga calldata 2918 felts, pool.withdraw() accepted on-chain ✓
-- Phase 7: nullifier stored, replay rejected on-chain ✓
-
-### Project CLAUDE.md — CREATED (2026-03-12)
-CLAUDE.md created at project root with 7-point privacy critique checklist:
-P1 server information leakage, P2 chain observer correlation, P3 anonymity set,
-P4 proof serialization correctness (toBigInt lesson codified), P5 log/header hygiene,
-P6 nullifier gap analysis, P7 trusted setup scope. Required test matrix included.
-
-## What's NOT Done (remaining gaps)
-1. **Lit decrypt unverified** — getLitSessionSigs() written + tested (SIWE works against live Datil).
-   Decrypt is rate-limited without Capacity Credits. Run `node scripts/lit-setup.mjs` once to unlock.
-   `tests/lit.test.mjs`: 3/3 pass, 2 skipped (rate-limit, not code failure)
-2. **No testnet/mainnet deployment** — devnet only
-3. **STRK20Adapter is a stub** — STRK20 not yet publicly deployed (announced 2026-03-10)
-4. **1-party trusted setup** — not production-ready (need MPC ceremony)
+1. **Lit decrypt** — unverified, Datil sunset April 1, Chipotle migration needed
+2. **Testnet/mainnet deployment** — devnet only (starknet-devnet 0.7.2, seed 42)
+3. **STRK20Adapter** — stub; STRK20 announced 2026-03-10, technical spec pending
+4. **1-party trusted setup** — need MPC ceremony for production
 5. **RapidSnark** — snarkjs WASM is 4-6s; RapidSnark would be ~100ms
-6. ~~e2e.test.mjs not re-run~~ — RE-VERIFIED 28/28 PASS (2026-03-12, post-toBigInt fix)
+6. **Production nullifier set** — in-memory only, lost on restart
+7. **Demo video** — deferred
+8. **Hackathon submission form** — not started
+9. **CI/CD** — no GitHub Actions
 
-## STRK20 Context
-Starkware announced STRK20 on 2026-03-10. Technical deep dive coming in "a few days".
-STRK20Adapter stub is ready to fill in. Monitor: https://strk20.starknet.io/
+---
 
-## Confidence Level
-- TypeScript compilation: compiles clean.
-- Proof generation: VERIFIED WORKING. ~4-6s per proof.
-- Poseidon hash: VERIFIED matches Ekubo circuit.
-- On-chain end-to-end (deposit → prove → garaga calldata → withdraw): VERIFIED, 8/8.
-- HTTP x402 end-to-end (deposit → real ZK proof → HTTP paywall): VERIFIED, 28/28.
-- Privacy invariants (no depositor info leaks to server): VERIFIED in e2e tests.
-- Replay prevention: VERIFIED in e2e tests.
-- Frontend: written, not deployed (no remote configured).
-- Lit encryption: written, not tested against real Lit network.
+## Run Order (devnet tests)
 
-## Test Summary
-| Test file | Count | Status |
-|-----------|-------|--------|
-| tests/onchain.test.mjs | 8/8 | PASS |
-| tests/server.test.mjs | 13/13 | PASS |
-| tests/integration.test.mjs | 26/26 | PASS |
-| tests/e2e.test.mjs | 28/28 | PASS (re-verified post-toBigInt fix) |
-| tests/withdrawal.test.mjs | 7/7 phases | PASS |
+```bash
+starknet-devnet --seed 42 &
+node scripts/rpc-proxy.mjs &
+node tests/onchain.test.mjs
+node tests/server.test.mjs
+node tests/integration.test.mjs
+node tests/e2e.test.mjs
+node tests/withdrawal.test.mjs
+```
 
-## Deployed
-- GitHub Pages: https://yonkoo11.github.io/wraith-protocol/ (rebuilds on push to main)
+## Recent Commits
+
+```
+be8bcaf — doc: record Datil sunset + Chipotle migration gap
+4bbe06f — fix: lit test — always attempt step 5, increase retries
+99711d3 — chore: clean repo + fix remaining stale branding
+fc090c9 — fix: complete rename — README, landing page URLs
+078dacc — fix: sync VERIFIER_CASM_HASH in e2e and withdrawal tests
+71be5c1 — build: regenerate Cairo artifacts + verify rename end-to-end
+a022dc2 — rename: Wraith Protocol → Cipher Pol across all source files
+```
