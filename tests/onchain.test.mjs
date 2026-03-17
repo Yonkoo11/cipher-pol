@@ -235,6 +235,13 @@ async function run() {
   console.log('Setup: Reset devnet + deploy fresh contracts');
   const { poolAddr } = await setupFreshDevnet(provider, account);
   console.log(`  Using pool: ${poolAddr}\n`);
+  // Write pool address for demo recording (non-fatal if video/ dir absent)
+  try {
+    const { writeFileSync } = await import('fs');
+    const { join } = await import('path');
+    const { fileURLToPath: f } = await import('url');
+    writeFileSync(join(f(import.meta.url), '../../video/pool_addr.txt'), poolAddr);
+  } catch { /* ok */ }
 
   // ─── Step 1: Sanity check pool is alive ────────────────────────────────────
   console.log('Step 1: Verify pool is deployed');
@@ -364,7 +371,6 @@ async function run() {
 
   const pyScript = `
 import sys, json
-sys.path.insert(0, '/tmp/garaga-v0.15.3/hydra')
 from garaga.starknet.groth16_contract_generator.calldata import groth16_calldata_from_vk_and_proof
 from garaga.starknet.groth16_contract_generator.parsing_utils import Groth16Proof, Groth16VerifyingKey
 vk = Groth16VerifyingKey.from_json('${VK_PATH}')
