@@ -1,11 +1,8 @@
 # Cipher Pol — Demo Recording
-# Run AFTER: node scripts/rpc-proxy.mjs & and devnet is live with contracts deployed
+# No live devnet required. Transactions are simulated; ZK proof and HTTP flow are real.
 #
 # Prerequisites:
-#   1. ~/bin/starknet-devnet --host 127.0.0.1 --port 5050 --seed 42
-#   2. node scripts/rpc-proxy.mjs &
-#   3. node tests/onchain.test.mjs   (writes pool address to video/pool_addr.txt)
-#   4. vhs video/demo.tape
+#   vhs video/demo.tape
 
 Output "video/demo-raw.mp4"
 

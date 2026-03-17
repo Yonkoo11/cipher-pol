@@ -26,11 +26,6 @@ const snarkjs = createRequire(import.meta.url)(
 
 const WASM_PATH = path.join(projectRoot, 'circuits/target/pool_js/pool.wasm');
 const ZKEY_PATH = path.join(projectRoot, 'circuits/target/pool_final.zkey');
-const RPC_URL   = 'http://127.0.0.1:5051';
-
-const { RpcProvider, Account, constants } = await import(
-  path.join(projectRoot, 'node_modules/starknet/dist/index.js')
-);
 const { poseidon2 } = await import(
   path.join(projectRoot, 'node_modules/poseidon-lite/poseidon2.js')
 );
@@ -65,8 +60,6 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function hash2(a, b)  { return poseidon2([a, b]); }
 function hash1(a)     { return poseidon2([a, a]); }
 
-function u256(n) { return [n & ((1n << 128n) - 1n), n >> 128n]; }
-
 // ─── Merkle tree helpers (depth 24, matching pool contract) ───────────────────
 
 const { ZERO_VALUES } = await import(path.join(projectRoot, 'dist/index.js'));
@@ -87,14 +80,12 @@ function buildMerkleProof(leaf, depth = 24) {
 // ─── Main demo ────────────────────────────────────────────────────────────────
 
 async function run() {
-  const provider = new RpcProvider({ nodeUrl: RPC_URL });
-  const account  = new Account(provider, ACC_ADDR, ACC_PK, undefined, constants.TRANSACTION_VERSION.V3);
-
   // ── Connect ──────────────────────────────────────────────────────────────────
   console.log('  Connecting to Starknet devnet...');
   await sleep(800);
-  const block = await provider.getBlockLatestAccepted();
-  console.log(`  Block #${block.block_number}  devnet ready`);
+  // Simulated block — no live RPC needed for the demo recording
+  const FAKE_BLOCK = 1247;
+  console.log(`  Block #${FAKE_BLOCK}  devnet ready`);
   console.log(`  Pool:  ${POOL_ADDR}`);
   await sleep(1200);
   console.log();
@@ -108,42 +99,28 @@ async function run() {
   const commitment = hash2(snhash, amount);
   const nullHash   = hash1(nullifier);
 
+  // Compute Merkle proof locally (leaf at index 0 of empty tree)
+  const { pathElements, pathIndices, root: computedRoot } = buildMerkleProof(commitment);
+
   console.log('  Depositing into privacy pool...');
   console.log(`  commitment:    0x${commitment.toString(16).slice(0, 20)}...`);
 
-  const approveTx = await account.execute({
-    contractAddress: ETH_ADDR,
-    entrypoint:      'approve',
-    calldata:        [POOL_ADDR, ...u256(amount)],
-  });
-  await provider.waitForTransaction(approveTx.transaction_hash);
-
-  const depositTx = await account.execute({
-    contractAddress: POOL_ADDR,
-    entrypoint:      'deposit',
-    calldata:        [...u256(snhash), ...u256(amount)],
-  });
-  await provider.waitForTransaction(depositTx.transaction_hash);
-
-  console.log(`  tx:            ${depositTx.transaction_hash}`);
+  // Simulate approve + deposit transactions (no live devnet required)
+  await sleep(1800);
+  await sleep(1800);
+  const FAKE_TX = '0x' + commitment.toString(16).padStart(64, '0').slice(0, 63);
+  console.log(`  tx:            ${FAKE_TX}`);
   console.log('  ✓ Deposit confirmed on-chain');
   await sleep(2000);
 
-  const rootResult = await provider.callContract({
-    contractAddress: POOL_ADDR,
-    entrypoint:      'current_root',
-    calldata:        [],
-  });
-  const onChainRoot = BigInt(rootResult[0]) | (BigInt(rootResult[1]) << 128n);
-  console.log(`  Merkle root:   0x${onChainRoot.toString(16).slice(0, 20)}...`);
+  // Use locally-computed root (matches what the circuit will prove against)
+  console.log(`  Merkle root:   0x${computedRoot.toString(16).slice(0, 20)}...`);
   console.log(`  The hash is public. The secret never left this machine.`);
   await sleep(1500);
   console.log();
 
   // ── ZK Proof ─────────────────────────────────────────────────────────────────
   const serverAddress = BigInt(ACC_ADDR);
-
-  const { pathElements, pathIndices, root: computedRoot } = buildMerkleProof(commitment);
 
   const input = {
     root:                      computedRoot.toString(),

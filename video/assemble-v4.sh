@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIO="$SCRIPT_DIR/audio"
 SITE="$SCRIPT_DIR/site-screenshots"
-OUT="$SCRIPT_DIR/cipher-pol-demo-v10.mp4"
+OUT="$SCRIPT_DIR/cipher-pol-demo-v11.mp4"
 SRT="$SCRIPT_DIR/captions/cipher-pol-demo-v2.srt"
 TITLE_HTML="$SCRIPT_DIR/title-card.html"
 PROBLEM_HTML="$SCRIPT_DIR/problem-card.html"
@@ -15,7 +15,7 @@ CLOSING_HTML="$SCRIPT_DIR/closing-card.html"
 DEMO_RAW="$SCRIPT_DIR/demo-raw.mp4"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
-TMP="$SCRIPT_DIR/tmp-v10"
+TMP="$SCRIPT_DIR/tmp-v11"
 mkdir -p "$TMP"
 
 for f in "$AUDIO"/0{1..9}-*.mp3; do
@@ -74,7 +74,7 @@ TITLE_DUR=3   # 3s silent title (SRT subtitles start at t=3s, must match)
 CLOSE_HOLD=2  # 2s silence after final line
 
 echo "────────────────────────────────────────────────────────────"
-echo "Cipher Pol Demo v4 — 10 segments, audio-driven"
+echo "Cipher Pol Demo v11 — 10 segments, audio-driven"
 echo "────────────────────────────────────────────────────────────"
 echo ""
 
@@ -115,31 +115,31 @@ echo "  ✓ 01: problem card (${D01}s) — slow KB toward EXPOSED badges"
 kb_seg "$SITE/hero.png" "$TMP/seg_02.mp4" "$D02" 0.45 0.0003
 echo "  ✓ 02: hero (${D02}s) — KB zoom in on tagline"
 
-# ── 03: Deposit (~18s) — demo-raw t=3→8s, 3.6x slowdown ─────────────────────
+# ── 03: Deposit (~18s) — demo-raw t=3.5→8.5s, 3.6x slowdown ─────────────────
 # "deposits into a pool on Starknet" — terminal shows it happening live.
-# t=3-8s shows: startup → "Depositing into privacy pool... commitment: 0x36c..."
-live_terminal "$DEMO_RAW" 3 8 "$D03" "$TMP/seg_03.mp4"
-echo "  ✓ 03: terminal deposit live t=3→8s → ${D03}s ($(echo "scale=1; $D03/5" | bc)x stretch)"
+# t=3.5-8.5s: "Depositing..." → commitment → tx sleeps → "✓ Deposit confirmed" → Merkle root
+live_terminal "$DEMO_RAW" 3.5 8.5 "$D03" "$TMP/seg_03.mp4"
+echo "  ✓ 03: terminal deposit live t=3.5→8.5s → ${D03}s ($(echo "scale=1; $D03/5" | bc)x stretch)"
 
-# ── 04: Proof (~12s) — freeze at t=12s, KB ───────────────────────────────────
-# "builds a ZK proof locally... takes about 4 seconds"
-# Frame shows: "Generating zero-knowledge proof... ✓ Proof generated. (6.4s)"
+# ── 04: Proof (~12s) — freeze at t=10s, KB ───────────────────────────────────
+# "builds a ZK proof locally... takes about 3 seconds"
+# Frame shows: "Generating zero-knowledge proof... ✓ Proof generated (3.6s)"
 # Text is in lower portion of the 2x-zoomed top-half → y_frac=0.75
-freeze_terminal "$DEMO_RAW" 12 "$TMP/seg_04.mp4" "$D04" 0.75
-echo "  ✓ 04: proof freeze t=12s KB (${D04}s) — focused on proof generation text"
+freeze_terminal "$DEMO_RAW" 10 "$TMP/seg_04.mp4" "$D04" 0.75
+echo "  ✓ 04: proof freeze t=10s KB (${D04}s) — proof generation text in focus"
 
-# ── 05: Payment (~18s) — demo-raw t=12→16s, 4.5x slowdown ───────────────────
+# ── 05: Payment (~18s) — demo-raw t=10→14s, 4.5x slowdown ───────────────────
 # "server sends 402... returns 200... doesn't know who paid"
-# t=12-16s: proof complete → 402 → proof header → 200 OK → withdrawal queue
-live_terminal "$DEMO_RAW" 12 16 "$D05" "$TMP/seg_05.mp4"
-echo "  ✓ 05: terminal payment live t=12→16s → ${D05}s ($(echo "scale=1; $D05/4" | bc)x stretch)"
+# t=10-14s: proof text showing → 402 appears → "Attaching ZK proof" → 200 OK → "Server gets paid"
+live_terminal "$DEMO_RAW" 10 14 "$D05" "$TMP/seg_05.mp4"
+echo "  ✓ 05: terminal payment live t=10→14s → ${D05}s ($(echo "scale=1; $D05/4" | bc)x stretch)"
 
-# ── 06: Withdrawal (~13s) — freeze at t=15s, KB ──────────────────────────────
+# ── 06: Withdrawal (~13s) — freeze at t=21s, KB ──────────────────────────────
 # "withdrawal queue... same note cannot be spent twice"
-# Frame shows: withdrawal queue + nullifier + "Same note cannot be spent twice."
-# Text at bottom of visible area → y_frac=0.85
-freeze_terminal "$DEMO_RAW" 15.5 "$TMP/seg_06.mp4" "$D06" 0.15 540
-echo "  ✓ 06: withdrawal freeze t=15.5s bottom-half KB (${D06}s) — withdrawal queue + nullifier + cannot spend twice"
+# Frame shows: withdrawal queue + nullifier + "Same note cannot be spent twice." (in bottom half)
+# crop_y=540 captures bottom 540px where withdrawal queue text lives
+freeze_terminal "$DEMO_RAW" 21 "$TMP/seg_06.mp4" "$D06" 0.15 540
+echo "  ✓ 06: withdrawal freeze t=21s bottom-half KB (${D06}s) — withdrawal queue + nullifier"
 
 # ── 07: Integrations (~14s) — specs.png ──────────────────────────────────────
 # "Starknet, Lit Protocol, x402" — protocol table shows Starknet + x402 explicitly.
