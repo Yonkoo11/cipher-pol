@@ -2,17 +2,17 @@
 
 ZK-native private payments for AI agents on Starknet.
 
-An AI agent deposits into a shared pool. Later, it pays an API server using a Groth16 zero-knowledge proof — without revealing which deposit funded the payment. The server learns the payment happened and verifies it cryptographically. It does not learn who paid.
+An AI agent deposits into a shared pool. When it later pays an API server, it generates a Groth16 zero-knowledge proof that proves pool membership without revealing which deposit. The server verifies the proof, gets paid, and learns nothing about who paid.
 
-Built on [x402](https://x402.org) (HTTP 402 payment protocol) and deployed on Starknet devnet.
+Built on [x402](https://www.x402.org) (HTTP 402 payment protocol) and deployed on Starknet devnet. Created for the [PL_Genesis: Frontiers of Collaboration](https://pl-genesis-frontiers-of-collaboration-hackathon.devspot.app/) hackathon.
 
 ---
 
 ## The problem
 
-AI agents make millions of API calls. Every payment today links the agent's on-chain identity to its activity. An observer watching the chain can reconstruct what the agent did, who it talked to, and when.
+Every time an AI agent pays for an API call on-chain, its address gets linked to the service, the amount, and the timestamp. Watch the chain and you can reconstruct what the agent is doing and who it's talking to.
 
-x402 solves the payment rail. Cipher Pol solves the identity problem.
+x402 gives agents a payment rail. Cipher Pol makes sure the payment doesn't reveal who's paying.
 
 ---
 
@@ -136,14 +136,14 @@ app.use('/v1/generate', cipherPolPaywall({
 
 ---
 
-## Known limits (honest)
+## Known limits
 
-1. **1-party trusted setup** — local Powers of Tau. Not production. MPC ceremony needed.
-2. **In-memory nullifier set** — lost on server restart (double-spend window). Redis needed for production.
-3. **No relay** — server operator sees nullifierHash + withdrawal tx. Full correlation graph. Documented in THREAT_MODEL.md.
-4. **Proof generation ~4-6s** — snarkjs WASM. RapidSnark (~100ms) not yet integrated.
-5. **Partial withdrawals blocked** — circuit supports them via `refundCommitmentHash`, but no `claimRefund()` path exists in v1. Attempting a partial withdrawal returns a hard error.
-6. **BN254 is not quantum-resistant** — v2 path is STARK proofs on Starknet's native hash.
+1. **1-party trusted setup.** Local Powers of Tau. Not production. Needs an MPC ceremony.
+2. **In-memory nullifier set.** Lost on server restart, which opens a double-spend window. Needs Redis for production.
+3. **No relay.** Server operator sees nullifierHash + withdrawal tx, so they can build a correlation graph. Documented in THREAT_MODEL.md.
+4. **Proof generation takes 4-6s.** snarkjs WASM. RapidSnark (~100ms) is not integrated yet.
+5. **Partial withdrawals blocked.** The circuit supports them via `refundCommitmentHash`, but there's no `claimRefund()` path in v1. Attempting one returns a hard error.
+6. **BN254 is not quantum-resistant.** The v2 path is STARK proofs on Starknet's native hash.
 
 See [`THREAT_MODEL.md`](docs/THREAT_MODEL.md) for the full analysis.
 
@@ -151,7 +151,7 @@ See [`THREAT_MODEL.md`](docs/THREAT_MODEL.md) for the full analysis.
 
 ## Stack
 
-- **Circuit**: Circom 2 + Groth16/BN254 + Poseidon2
+- **Circuit**: Circom 2 + Groth16/BN254 + Poseidon
 - **On-chain verifier**: garaga 0.15.3 (Starknet)
 - **Proof generation**: snarkjs WASM
 - **Payment protocol**: x402 (HTTP 402)
