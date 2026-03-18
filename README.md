@@ -155,6 +155,7 @@ See [`THREAT_MODEL.md`](docs/THREAT_MODEL.md) for the full analysis.
 - **On-chain verifier**: garaga 0.15.3 (Starknet)
 - **Proof generation**: snarkjs WASM
 - **Payment protocol**: x402 (HTTP 402)
+- **Note storage**: Lit Protocol V1 (Naga SDK, Datil network) for encrypted cross-device note recovery
 - **Chain**: Starknet (Cairo contracts)
 
 ---
